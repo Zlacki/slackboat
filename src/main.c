@@ -8,12 +8,11 @@
 #include <arpa/inet.h>
 #include "util.h"
 
-#define MAXLINES 4096
+#define MAX 4096
 
 int main(void) {
 	int socket_fd;
 	bool debug = true;
-	char out[MAXLINES + 1];
 	char *server = "irc.what.cd";
 
 	struct hostent *hp = gethostbyname(server);
@@ -23,25 +22,37 @@ int main(void) {
 		return 1;
 	}
 
-
 	for(;;) {
-		char recv[MAXLINES + 1];
+		char *recv = malloc(MAX + 1);
 		recv[0] = 0;
 		int i = slack_read(socket_fd, recv, debug);
 		if(i > 0) {
 			recv[i] = 0;
-			if(strstr(recv, "NOTICE Auth") != NULL) {
-				slack_send(socket_fd, "NICK slackboat\r\n", debug);
-				slack_send(socket_fd, "USER slackboat 8 * : Slack the Boat\r\n", debug);
-				slack_send(socket_fd, "JOIN #pharmaceuticals\r\n", debug);
-			}
+			char *line = strtok(recv, "\n");
 
-			if(strstr(recv, "PING") != NULL) {
-				out[0] = 0;
-				char *pos = strstr(recv, " ") + 1;
-				sprintf(out, "PONG %s\r\n", pos);
-				slack_send(socket_fd, out, debug);
-			}
+			do {
+				char host[64], command[11], target[32], content[256];
+
+				/* TODO: Support lines like PING %s, etc */
+				sscanf(line, ":%63s %10s %31s :%255[^\n]", host, command, target, content);
+
+				if(!strcmp(command, "NOTICE") && !strcmp(target, "Auth")) {
+					if(strstr(content, "Looking up your hostname") != NULL) {
+						slack_send(socket_fd, "NICK slackboat\r\n", debug);
+						slack_send(socket_fd, "USER slackboat 8 * :Slack the Boat\r\n", debug);
+					} else
+						slack_send(socket_fd, "JOIN #pharmaceuticals\r\n", debug);
+				}
+
+				if(strstr(line, "PING") != NULL) {
+					char out[MAX + 1];
+					out[0] = 0;
+					char *pos = strstr(line, " ") + 1;
+					sprintf(out, "PONG %s\r\n", pos);
+					slack_send(socket_fd, out, debug);
+				}
+			} while((line = strtok(NULL, "\n")) != NULL);
+
 		}
 	}
 
@@ -67,17 +78,16 @@ bool slack_connect(char *server, unsigned int port, int *socket_fd) {
 }
 
 int slack_send(int socket_fd, char *out, bool debug) {
-    if (debug) {
+    if (debug)
         printf("OUT: %s", out);
-    }
     return send(socket_fd, out, strlen(out), 0);
 }
 
 int slack_read(int socket_fd, char *recv, bool debug) {
-    int i = read(socket_fd, recv, MAXLINES);
-    if (i > 0 && debug) {
+	memset(recv, 0, MAX);
+    int i = read(socket_fd, recv, MAX);
+    if (i > 0 && debug)
         printf("IN: %s", recv);
-    }
 
     return i;
 }

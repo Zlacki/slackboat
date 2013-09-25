@@ -31,6 +31,7 @@ int main(void) {
 			char *line = strtok(recv, "\n");
 
 			do {
+				printf("IN: %s\n", line);
 				char host[64], command[11], target[32], content[256];
 
 				/* TODO: Support lines like PING %s, etc */
@@ -85,9 +86,6 @@ int slack_send(int socket_fd, char *out, bool debug) {
 
 int slack_read(int socket_fd, char *recv, bool debug) {
 	memset(recv, 0, MAXLEN);
-    int i = read(socket_fd, recv, MAXLEN);
-    if (i > 0 && debug)
-        printf("IN: %s", recv);
 
-    return i;
+    return read(socket_fd, recv, MAXLEN);
 }

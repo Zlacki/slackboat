@@ -8,7 +8,7 @@
 #include <arpa/inet.h>
 #include "util.h"
 
-#define MAX 4096
+#define MAXLEN 4096
 
 int main(void) {
 	int socket_fd;
@@ -23,7 +23,7 @@ int main(void) {
 	}
 
 	for(;;) {
-		char *recv = malloc(MAX + 1);
+		char *recv = malloc(MAXLEN + 1);
 		recv[0] = 0;
 		int i = slack_read(socket_fd, recv, debug);
 		if(i > 0) {
@@ -45,7 +45,7 @@ int main(void) {
 				}
 
 				if(strstr(line, "PING") != NULL) {
-					char out[MAX + 1];
+					char out[MAXLEN + 1];
 					out[0] = 0;
 					char *pos = strstr(line, " ") + 1;
 					sprintf(out, "PONG %s\r\n", pos);
@@ -84,8 +84,8 @@ int slack_send(int socket_fd, char *out, bool debug) {
 }
 
 int slack_read(int socket_fd, char *recv, bool debug) {
-	memset(recv, 0, MAX);
-    int i = read(socket_fd, recv, MAX);
+	memset(recv, 0, MAXLEN);
+    int i = read(socket_fd, recv, MAXLEN);
     if (i > 0 && debug)
         printf("IN: %s", recv);
 

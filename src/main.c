@@ -40,7 +40,7 @@ int main(void) {
 				char out[BUFFER_SIZE];
 				out[0] = 0;
 				char *pos = strstr(in_buffer, " ") + 1;
-				sprintf(out, "PONG %s\r\n", pos);
+				snprintf(out, 8 + strlen(pos), "PONG %s\r\n", pos);
 				slack_send(socket_fd, out, debug);
 			}
 		} else if(i < 0)

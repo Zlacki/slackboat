@@ -21,24 +21,24 @@ int main(void) {
 
 	for(;;) {
 		char in_buffer[BUFFER_SIZE];
-		int i = slack_read(socket_fd, in_buffer, debug);
+		int i = slack_read(socket_fd, in_buffer);
 		if(i > 0) {
-			printf("IN: %s", in_buffer);
-			char sender[64], command[32], argument[32], content[256];
+			if(debug)
+				printf("IN: %s", in_buffer);
 
+			char sender[64], command[32], argument[32], content[256];
 			sscanf(in_buffer, ":%63s %31s %31s :%255[^\n]", sender, command, argument, content);
 
-			if(!strcmp(command, "NOTICE") && !strcmp(argument, "Auth")) {
-				if(strstr(content, "Looking up your hostname") != NULL) {
-					slack_send(socket_fd, "NICK slackboat\r\n", debug);
-					slack_send(socket_fd, "USER slackboat 8 * :Slack the Boat\r\n", debug);
-				} else if(strstr(content, "Welcome") != NULL)
-					slack_send(socket_fd, "JOIN #pharmaceuticals\r\n", debug);
+			if(!strcmp(command, "NOTICE") && strstr(content, "Looking up your hostname") != NULL) {
+				slack_send(socket_fd, "NICK slackboat\r\n", debug);
+				slack_send(socket_fd, "USER slackboat 8 * :Slack the Boat\r\n", debug);
 			}
 
-			if(strstr(in_buffer, "PING") != NULL) {
+			if((!strcmp(command, "NOTICE") || !strcmp(command, "001")) && strstr(content, "Welcome") != NULL)
+				slack_send(socket_fd, "JOIN #pharmaceuticals\r\n", debug);
+
+			if(!strncmp(in_buffer, "PING :", 6)) {
 				char out[BUFFER_SIZE];
-				out[0] = 0;
 				char *pos = strstr(in_buffer, " ") + 1;
 				snprintf(out, 8 + strlen(pos), "PONG %s\r\n", pos);
 				slack_send(socket_fd, out, debug);
@@ -75,7 +75,7 @@ int slack_send(int socket_fd, char *out, bool debug) {
     return send(socket_fd, out, strlen(out), 0);
 }
 
-int slack_read(int socket_fd, char *in_buffer, bool debug) {
+int slack_read(int socket_fd, char *in_buffer) {
 	ssize_t nread = 0;
 	size_t tread = 0;
 	char c;
@@ -113,4 +113,20 @@ int slack_read(int socket_fd, char *in_buffer, bool debug) {
 
 	*in_buffer = '\0';
 	return tread;
+}
+
+void irc_notice_event(char *sender, char *command, char *argument, char *content) {
+
+}
+
+void irc_privmsg_event(char *sender, char *command, char *argument, char *content) {
+
+}
+
+void irc_privmsg(const char *recipient, const char *message) {
+
+}
+
+void irc_join_channel(const char *channel) {
+
 }

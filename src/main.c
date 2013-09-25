@@ -30,7 +30,7 @@ int main(void) {
 			char sender[64], command[32], argument[32], content[256];
 			sscanf(in_buffer, ":%63s %31s %31s :%255[^\n]", sender, command, argument, content);
 
-			if(!strncmp(command, "NOTICE", 6) || !strncmp(command, "001", 3))
+			if(!strncmp(command, "NOTICE", 6))
 				irc_notice_event(sender, argument, content);
 
 			if(!strncmp(command, "001", 3) && strstr(content, "Welcome") != NULL)

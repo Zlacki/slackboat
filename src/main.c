@@ -3,10 +3,12 @@
 #include <string.h>
 #include <stdbool.h>
 #include <sys/socket.h>
+#include <sys/un.h>
 #include <netdb.h>
 #include <unistd.h>
 #include <errno.h>
 #include <arpa/inet.h>
+#include <pthread.h>
 
 #include "util.h"
 
@@ -14,35 +16,57 @@ int socket_fd;
 int ipc_fd;
 bool debug = true;
 
-int main(void) {
+/* TODO: Start child process, monitor status, etc */
+void init_module(char *name) {
+	/* TODO: Best function for launching child proc. */
+	int conn;
+	if((conn = accept(ipc_fd, NULL, NULL)) == -1) {
+		perror("Error accepting incoming module connection");
+		/* TODO: Kill child process */
+		return;
+	}
+	for(;;) {
+		//char buffer[100];
+		printf("Thread running: %s\n", name);
+		usleep(50 * 1000);
+	}
+	return;
+}
+
+int init_ipc(void) {
 	struct sockaddr_un ipc_addr;
-	char ipc_buf[100];
-	if((ipc_fd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0 {
+	if((ipc_fd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
 		perror("Cannot initialize IPC");
-		return 1;
+		return 0;
 	}
 
 	memset(&ipc_addr, 0, sizeof(ipc_addr));
 	ipc_addr.sun_family = AF_UNIX;
-	strncpy(ipc_addr.sun_path, "./slackboat.tmp", sizeof(ipc_addr.sun_path)-1);
-	unlink("./slackboat.tmp");
+	strncpy(ipc_addr.sun_path, "./slackboat.sock", sizeof(ipc_addr.sun_path)-1);
+	unlink("./slackboat.sock");
 
 	if(bind(ipc_fd, (struct sockaddr*)&ipc_addr, sizeof(ipc_addr)) == -1) {
 		perror("Cannot initialize IPC socket");
-		return 1;
+		return 0;
 	}
 
 	if(listen(ipc_fd, 5) == -1) {
 		perror("Cannot listen on IPC socket");
-		return 1;
+		return 0;
 	}
 
-	/* TODO: Implement event loop for processing IPC I/O API */
+	return 1;
+}
+
+
+int main(void) {
+	if(!init_ipc())
+		exit(1);
 
 	struct hostent *hp = gethostbyname(SERVER);
 	if(!slack_connect(inet_ntoa(*(struct in_addr*) (hp->h_addr_list[0])), 6667)) {
 		printf("Failed to connect to %s.\n", SERVER);
-		return 1;
+		exit(1);
 	}
 
 	for(;;) {
@@ -51,7 +75,6 @@ int main(void) {
 		if(i > 0) {
 			if(debug)
 				printf("IN: %s", in_buffer);
-
 			char sender[64], command[32], argument[32], content[256];
 			sscanf(in_buffer, ":%63s %31s %31s :%255[^\n]", sender, command, argument, content);
 
@@ -141,6 +164,40 @@ int slack_read(char *in_buffer) {
 
 	*in_buffer = '\0';
 	return tread;
+}
+
+void irc_welcome_event(void) {
+	irc_join_channel("#pharmaceuticals");
+}
+
+void irc_notice_event(char *sender, char *argument, char *content) {
+	/* TODO: Load this and more from a cache file of sorts, hosts, channels, quotes, etc. */
+	if(strstr(content, "*** Looking up your hostname") != NULL) {
+		slack_send("NICK slackboat\r\n");
+		slack_send("USER slackboat 8 * :Slack the Boat\r\n");
+	}
+	if(!strncmp(sender, "NickServ", 8) && strstr(content, "please choose a different nick") != NULL) {
+		char out[256];
+		memset(out, 0, 256);
+		snprintf(out, 12 + strlen(PASSWORD), "IDENTIFY %s\r\n", PASSWORD);
+		irc_privmsg("NickServ", out);
+	}
+}
+
+void irc_privmsg_event(char *sender, char *argument, char *content) {
+	if(!strncmp(content, ".", 1) && !strncmp(sender, "sasha", 5)) {
+		char command[128], args[256];
+		sscanf(content, ".%127s %255[^\n]", command, args);
+		if(!strncmp(command, "kick", 4) || !strncmp(command, "k", 1)) {
+			char *s = strtok(args, "\0");
+			char out[256];
+			memset(out, 0, 256);
+			snprintf(out, 10 + strlen(argument) + strlen(s), "KICK %s %s\r\n", argument, s);
+			irc_privmsg("ChanServ", out);
+			memset(out, 0, 256);
+			irc_privmsg(argument, out);
+		}
+	}
 }
 
 void irc_privmsg(const char *recipient, const char *message) {

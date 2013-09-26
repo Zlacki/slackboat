@@ -11,9 +11,15 @@
 #include "util.h"
 
 int socket_fd;
+int ipc_fd;
 bool debug = true;
 
 int main(void) {
+	if((ipc_fd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0 {
+		perror("Cannot initialize IPC");
+		return 1;
+	}
+
 	struct hostent *hp = gethostbyname(SERVER);
 	if(!slack_connect(inet_ntoa(*(struct in_addr*) (hp->h_addr_list[0])), 6667)) {
 		printf("Failed to connect to %s.\n", SERVER);
@@ -43,12 +49,12 @@ int main(void) {
 				char out[BUFFER_SIZE];
 				memset(out, 0, BUFFER_SIZE);
 				char *pos = strstr(in_buffer, " ") + 1;
-				snprintf(out, 8 + strlen(pos), "PONG %s\r\n", pos);
+				snprintf(out, 8 + strlen(pos), "PONG %s", pos);
 				slack_send(out);
 			}
 		} else if(i < 0)
 			perror("Unexpected error while reading from IRC socket");
-		usleep(5 * 10000); /* 50ms */
+		usleep(50 * 1000); /* 50ms */
 	}
 
 	return 0;
@@ -116,40 +122,6 @@ int slack_read(char *in_buffer) {
 
 	*in_buffer = '\0';
 	return tread;
-}
-
-void irc_welcome_event(void) {
-	irc_join_channel("#pharmaceuticals");
-}
-
-void irc_notice_event(char *sender, char *argument, char *content) {
-	/* TODO: Load this and more from a cache file of sorts, hosts, channels, quotes, etc. */
-	if(strstr(content, "*** Looking up your hostname") != NULL) {
-		slack_send("NICK slackboat\r\n");
-		slack_send("USER slackboat 8 * :Slack the Boat\r\n");
-	}
-	if(!strncmp(sender, "NickServ", 8) && strstr(content, "please choose a different nick") != NULL) {
-		char out[256];
-		memset(out, 0, 256);
-		snprintf(out, 12 + strlen(PASSWORD), "IDENTIFY %s\r\n", PASSWORD);
-		irc_privmsg("NickServ", out);
-	}
-}
-
-void irc_privmsg_event(char *sender, char *argument, char *content) {
-	if(!strncmp(content, ".", 1) && !strncmp(sender, "sasha", 5)) {
-		char command[128], args[256];
-		sscanf(content, ".%127s %255[^\n]", command, args);
-		if(!strncmp(command, "kick", 4) || !strncmp(command, "k", 1)) {
-			char *s = strtok(args, "\0");
-			char out[256];
-			memset(out, 0, 256);
-			snprintf(out, 10 + strlen(argument) + strlen(s), "KICK %s %s\r\n", argument, s);
-			irc_privmsg("ChanServ", out);
-			memset(out, 0, 256);
-			irc_privmsg(argument, out);
-		}
-	}
 }
 
 void irc_privmsg(const char *recipient, const char *message) {

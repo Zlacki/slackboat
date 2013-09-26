@@ -15,10 +15,29 @@ int ipc_fd;
 bool debug = true;
 
 int main(void) {
+	struct sockaddr_un ipc_addr;
+	char ipc_buf[100];
 	if((ipc_fd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0 {
 		perror("Cannot initialize IPC");
 		return 1;
 	}
+
+	memset(&ipc_addr, 0, sizeof(ipc_addr));
+	ipc_addr.sun_family = AF_UNIX;
+	strncpy(ipc_addr.sun_path, "./slackboat.tmp", sizeof(ipc_addr.sun_path)-1);
+	unlink("./slackboat.tmp");
+
+	if(bind(ipc_fd, (struct sockaddr*)&ipc_addr, sizeof(ipc_addr)) == -1) {
+		perror("Cannot initialize IPC socket");
+		return 1;
+	}
+
+	if(listen(ipc_fd, 5) == -1) {
+		perror("Cannot listen on IPC socket");
+		return 1;
+	}
+
+	/* TODO: Implement event loop for processing IPC I/O API */
 
 	struct hostent *hp = gethostbyname(SERVER);
 	if(!slack_connect(inet_ntoa(*(struct in_addr*) (hp->h_addr_list[0])), 6667)) {

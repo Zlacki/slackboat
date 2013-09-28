@@ -16,21 +16,35 @@ int socket_fd;
 int ipc_fd;
 bool debug = true;
 
+void strprepend(char *s, const char* t) {
+	size_t tlen = strlen(t);
+	size_t slen = strlen(s);
+
+	s = realloc(s, slen + tlen);
+
+	memmove(s + tlen, s, slen);
+	memmove(s, t, tlen);
+}
+
 /* TODO: Start child process, monitor status, etc */
-void init_module(char *name) {
-	/* TODO: Best function for launching child proc. */
+void *init_module(void *name) {
+	char s[256];
+	snprintf(s, 255, "Module ‘%s’ starting...", (char *) name);
+	irc_privmsg("#pharmaceuticals", s);
+	strprepend(name, "./");
+	execl(name, name, NULL);
 	int conn;
 	if((conn = accept(ipc_fd, NULL, NULL)) == -1) {
 		perror("Error accepting incoming module connection");
 		/* TODO: Kill child process */
-		return;
+		return NULL;
 	}
 	for(;;) {
-		//char buffer[100];
-		printf("Thread running: %s\n", name);
+		printf("Thread running: %s\n", (char *) name);
 		usleep(50 * 1000);
 	}
-	return;
+
+	return NULL;
 }
 
 int init_ipc(void) {
@@ -186,17 +200,38 @@ void irc_notice_event(char *sender, char *argument, char *content) {
 
 void irc_privmsg_event(char *sender, char *argument, char *content) {
 	if(!strncmp(content, ".", 1) && !strncmp(sender, "sasha", 5)) {
-		char command[128], args[256];
-		sscanf(content, ".%127s %255[^\n]", command, args);
-		if(!strncmp(command, "kick", 4) || !strncmp(command, "k", 1)) {
-			char *s = strtok(args, "\0");
+		char **argv, command[128], args[256];
+		int argc;
+		if(strstr(content, " ") != NULL) {
+			argc = 1;
+			sscanf(content, ".%127s %255[^\r\n]", command, args);
+			for (int i = 0; args[i]; i++)
+				argc += (args[i] == ' ');
+		} else {
+			argc = 0;
+			sscanf(content, ".%127s[^\r\n]", command);
+		}
+		argv = (char **) malloc(sizeof(char *) * argc);
+		if(argc > 0) {
+			argv[0] = strtok(args, " ");
+			for(int i = 1; i < argc; i++)
+				argv[i] = strtok(NULL, " ");
+		}
+		if((!strncmp(command, "kick", 4) || !strncmp(command, "k", 1)) && argc > 0) {
 			char out[256];
 			memset(out, 0, 256);
-			snprintf(out, 10 + strlen(argument) + strlen(s), "KICK %s %s\r\n", argument, s);
+			snprintf(out, 10 + strlen(argument), "KICK %s ", argument);
+			for(int i = 0; i < argc; i++) {
+				strcat(out, argv[i]);
+				strcat(out, " ");
+			}
 			irc_privmsg("ChanServ", out);
-			memset(out, 0, 256);
-			irc_privmsg(argument, out);
+		} else if(!strncmp(command, "load", 4) && argc > 0) {
+			pthread_t module_thread;
+			char *out = strdup(argv[0]);
+			pthread_create(&module_thread, NULL, init_module, out);
 		}
+		free(argv);
 	}
 }
 

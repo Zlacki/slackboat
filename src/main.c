@@ -12,8 +12,12 @@
 
 #include "util.h"
 
+/* TODO: Monitor child processes and monitor IPC I/O, etc */
+
 int socket_fd;
 int ipc_fd;
+pid_t ipc_pids[128];
+int ipc_index = 0;
 bool debug = true;
 
 void strprepend(char *s, const char* t) {
@@ -26,22 +30,28 @@ void strprepend(char *s, const char* t) {
 	memmove(s, t, tlen);
 }
 
-/* TODO: Start child process, monitor status, etc */
 void *init_module(void *name) {
-	char s[256];
-	snprintf(s, 255, "Module ‘%s’ starting...", (char *) name);
-	irc_privmsg("#pharmaceuticals", s);
-	strprepend(name, "./");
-	execl(name, name, NULL);
-	int conn;
-	if((conn = accept(ipc_fd, NULL, NULL)) == -1) {
-		perror("Error accepting incoming module connection");
-		/* TODO: Kill child process */
+	pid_t child = fork();
+	if(child == -1) {
+		perror("Error starting module");
 		return NULL;
 	}
-	for(;;) {
-		printf("Thread running: %s\n", (char *) name);
-		usleep(50 * 1000);
+	ipc_pids[ipc_index++] = child;
+	if(child == 0) {
+		char s[256];
+		snprintf(s, 255, "Module ‘%s’ starting...", (char *) name);
+		irc_privmsg("#pharmaceuticals", s);
+		strprepend(name, "./");
+		execl(name, name, NULL);
+/*		int conn;
+		if((conn = accept(ipc_fd, NULL, NULL)) == -1) {
+			perror("Error accepting incoming module connection");
+			return NULL;
+		}
+		for(;;) {
+			printf("Thread running: %s\n", (char *) name);
+			usleep(50 * 1000);
+		}*/
 	}
 
 	return NULL;
@@ -227,9 +237,10 @@ void irc_privmsg_event(char *sender, char *argument, char *content) {
 			}
 			irc_privmsg("ChanServ", out);
 		} else if(!strncmp(command, "load", 4) && argc > 0) {
-			pthread_t module_thread;
+/*			pthread_t module_thread;
 			char *out = strdup(argv[0]);
-			pthread_create(&module_thread, NULL, init_module, out);
+			pthread_create(&module_thread, NULL, init_module, out);*/
+			init_module(strdup(argv[0]));
 		}
 		free(argv);
 	}

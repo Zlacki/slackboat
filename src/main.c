@@ -4,6 +4,9 @@
 #include <stdbool.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <signal.h>
 #include <netdb.h>
 #include <unistd.h>
 #include <errno.h>
@@ -12,11 +15,9 @@
 
 #include "util.h"
 
-/* TODO: Monitor child processes and monitor IPC I/O, etc */
-
 int socket_fd;
-int ipc_fd;
-pid_t ipc_pids[128];
+int pipe_fd[2];
+char *ipc_names[128];
 int ipc_index = 0;
 bool debug = true;
 
@@ -31,61 +32,74 @@ void strprepend(char *s, const char* t) {
 }
 
 void *init_module(void *name) {
+	ipc_index++;
 	pid_t child = fork();
 	if(child == -1) {
 		perror("Error starting module");
 		return NULL;
 	}
-	ipc_pids[ipc_index++] = child;
 	if(child == 0) {
+		close(pipe_fd[0]);
+		ipc_names[ipc_index] = (char *) name;
 		char s[256];
 		snprintf(s, 255, "Module ‘%s’ starting...", (char *) name);
 		irc_privmsg("#pharmaceuticals", s);
 		strprepend(name, "./");
+		dup2(pipe_fd[1], 1);
+		dup2(pipe_fd[1], 2);
+		close(pipe_fd[1]);
 		execl(name, name, NULL);
-/*		int conn;
-		if((conn = accept(ipc_fd, NULL, NULL)) == -1) {
-			perror("Error accepting incoming module connection");
-			return NULL;
-		}
-		for(;;) {
-			printf("Thread running: %s\n", (char *) name);
-			usleep(50 * 1000);
-		}*/
+	}
+
+	return NULL;
+}
+
+void *handle_ipc_calls() {
+	close(pipe_fd[1]);
+	char cbuf[256];
+	int tread;
+	while((tread = read(pipe_fd[0], cbuf, 256)) != 0) {
+		cbuf[tread] = '\0';
+		char msg[256];
+		snprintf(msg, 255, "From a running module: %s", cbuf);
+		irc_privmsg("#pharmaceuticals", msg);
+		printf("%s\n", cbuf);
 	}
 
 	return NULL;
 }
 
 int init_ipc(void) {
-	struct sockaddr_un ipc_addr;
-	if((ipc_fd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
-		perror("Cannot initialize IPC");
-		return 0;
-	}
+	pipe(pipe_fd);
 
-	memset(&ipc_addr, 0, sizeof(ipc_addr));
-	ipc_addr.sun_family = AF_UNIX;
-	strncpy(ipc_addr.sun_path, "./slackboat.sock", sizeof(ipc_addr.sun_path)-1);
-	unlink("./slackboat.sock");
-
-	if(bind(ipc_fd, (struct sockaddr*)&ipc_addr, sizeof(ipc_addr)) == -1) {
-		perror("Cannot initialize IPC socket");
-		return 0;
-	}
-
-	if(listen(ipc_fd, 5) == -1) {
-		perror("Cannot listen on IPC socket");
-		return 0;
-	}
+	pthread_t ipc_thread;
+	pthread_create(&ipc_thread, NULL, handle_ipc_calls, NULL);
 
 	return 1;
 }
 
+void child_handler(int sig) {
+	pid_t pid;
+	int status;
+
+	while((pid = waitpid(-1, &status, WNOHANG)) > 0) {
+		char *name = ipc_names[ipc_index--];
+		char s[256];
+		snprintf(s, 255, "Module ‘%s’ has stopped.", name);
+		irc_privmsg("#pharmaceuticals", s);
+	}
+}
 
 int main(void) {
 	if(!init_ipc())
 		exit(1);
+
+	struct sigaction sa;
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = 0;
+	sa.sa_handler = child_handler;
+
+	sigaction(SIGCHLD, &sa, NULL);
 
 	struct hostent *hp = gethostbyname(SERVER);
 	if(!slack_connect(inet_ntoa(*(struct in_addr*) (hp->h_addr_list[0])), 6667)) {
@@ -237,9 +251,6 @@ void irc_privmsg_event(char *sender, char *argument, char *content) {
 			}
 			irc_privmsg("ChanServ", out);
 		} else if(!strncmp(command, "load", 4) && argc > 0) {
-/*			pthread_t module_thread;
-			char *out = strdup(argv[0]);
-			pthread_create(&module_thread, NULL, init_module, out);*/
 			init_module(strdup(argv[0]));
 		}
 		free(argv);

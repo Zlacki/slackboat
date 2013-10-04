@@ -4,7 +4,7 @@
 #define BUFFER_SIZE 1024
 #define NICK "slackboat"
 #define SERVER "irc.what.cd"
-#define PASSWORD "thisistheonlygoodbot"
+#define PASSWORD "PASSWORD"
 
 bool slack_connect(char*, unsigned int);
 int slack_send(char*);

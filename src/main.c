@@ -31,8 +31,7 @@ void strprepend(char *s, const char* t) {
 	memmove(s, t, tlen);
 }
 
-void *init_module(void *name) {
-	ipc_index++;
+void *init_module(char *name) {
 	pid_t child = fork();
 	if(child == -1) {
 		perror("Error starting module");
@@ -40,13 +39,12 @@ void *init_module(void *name) {
 	}
 	if(child == 0) {
 		close(pipe_fd[0]);
-		ipc_names[ipc_index] = (char *) name;
+		ipc_names[ipc_index++] = name;
 		char s[256];
-		snprintf(s, 255, "Module ‘%s’ starting...", (char *) name);
+		snprintf(s, 255, "Module ‘%s’ starting...", name);
 		irc_privmsg("#pharmaceuticals", s);
 		strprepend(name, "./");
-		dup2(pipe_fd[1], 1);
-		dup2(pipe_fd[1], 2);
+		dup2(pipe_fd[1], STDOUT_FILENO);
 		close(pipe_fd[1]);
 		execl(name, name, NULL);
 	}
@@ -58,24 +56,17 @@ void *handle_ipc_calls() {
 	close(pipe_fd[1]);
 	char cbuf[256];
 	int tread;
-	while((tread = read(pipe_fd[0], cbuf, 256)) != 0) {
-		cbuf[tread] = '\0';
-		char msg[256];
-		snprintf(msg, 255, "From a running module: %s", cbuf);
-		irc_privmsg("#pharmaceuticals", msg);
-		printf("%s\n", cbuf);
+	for(;;) {
+		while((tread = read(pipe_fd[0], cbuf, 256)) > 0) {
+			cbuf[tread] = '\0';
+			char msg[256];
+			snprintf(msg, 255, "From a running module: %s", cbuf);
+			irc_privmsg("#pharmaceuticals", msg);
+		}
+		usleep(50 * 1000);
 	}
 
 	return NULL;
-}
-
-int init_ipc(void) {
-	pipe(pipe_fd);
-
-	pthread_t ipc_thread;
-	pthread_create(&ipc_thread, NULL, handle_ipc_calls, NULL);
-
-	return 1;
 }
 
 void child_handler(int sig) {
@@ -83,7 +74,7 @@ void child_handler(int sig) {
 	int status;
 
 	while((pid = waitpid(-1, &status, WNOHANG)) > 0) {
-		char *name = ipc_names[ipc_index--];
+		char *name = ipc_names[--ipc_index];
 		char s[256];
 		snprintf(s, 255, "Module ‘%s’ has stopped.", name);
 		irc_privmsg("#pharmaceuticals", s);
@@ -91,9 +82,9 @@ void child_handler(int sig) {
 }
 
 int main(void) {
-	if(!init_ipc())
-		exit(1);
-
+	pipe(pipe_fd);
+	pthread_t ipc_thread;
+	pthread_create(&ipc_thread, NULL, handle_ipc_calls, NULL);
 	struct sigaction sa;
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = 0;

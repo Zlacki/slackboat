@@ -3,7 +3,7 @@
 
 #define NICK "slackboat"
 #define SERVER "irc.what.cd"
-#define PASSWORD "thisistheonlygoodbot"
+#define PASSWORD "PASSWORD"
 
 void irc_notice_event(char *, char *, char *);
 void irc_welcome_event(void);

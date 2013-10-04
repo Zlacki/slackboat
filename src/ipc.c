@@ -30,7 +30,6 @@ void init_module(char *name) {
 		return;
 	}
 	if(child == 0) {
-		close(pipe_fd[0]);
 		ipc_names[ipc_index++] = name;
 		char s[256];
 		snprintf(s, 255, "Module ‘%s’ starting...", name);
@@ -38,7 +37,12 @@ void init_module(char *name) {
 		strprepend(name, "./");
 		dup2(pipe_fd[1], STDOUT_FILENO);
 		close(pipe_fd[1]);
+		close(pipe_fd[0]);
 		execl(name, name, NULL);
+	} else {
+		dup2(pipe_fd[0], STDIN_FILENO);
+		close(pipe_fd[0]);
+		close(pipe_fd[1]);
 	}
 
 	return;

@@ -13,6 +13,8 @@
 #include "ipc.h"
 #include "util.h"
 
+int socket_fd;
+
 int main(void) {
 	init_ipc();
 	struct hostent *hp = gethostbyname(SERVER);

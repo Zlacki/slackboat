@@ -51,61 +51,21 @@ void init_module(char *name) {
 			perror("Error starting module.");
 			exit(1);
 		}
-		close(pipe_fd[0]);
 		execl(name, name, NULL);
 	}
 
 	return;
 }
 
-int ipc_read(char *in_buffer) {
-	ssize_t nread = 0;
-	size_t tread = 0;
-	char c;
-
-	if (in_buffer == NULL) {
-		errno = EINVAL;
-		return -1;
-	}
-
-	for (;;) {
-		nread = read(pipe_fd[0], &c, 1);
-
-		if (nread == -1) {
-			if (errno == EINTR)
-				continue;
-			else
-				return -1;
-		} else if (nread == 0) {
-			if (tread == 0)
-				return 0;
-			else
-				break;
-
-		} else {
-			if (tread < BUFFER_SIZE - 1) {
-				tread++;
-				*in_buffer++ = c;
-			}
-
-			if (c == '\n' || c == EOF)
-				break;
-		}
-	}
-
-	*in_buffer = '\0';
-	return tread;
-}
-
 void *handle_ipc_calls() {
+	close(pipe_fd[1]);
+	char cbuf[256];
+	int tread;
 	for(;;) {
-		char in_buffer[BUFFER_SIZE];
-		int tread = ipc_read(in_buffer);
-		if(tread > 0) {
-			if(DEBUG)
-				printf("IPC IN: %s", in_buffer);
+		while((tread = read(pipe_fd[0], cbuf, 255)) > 0) {
+			cbuf[tread] = '\0';
 			char msg[256];
-			snprintf(msg, 255, "From a running module: %s", in_buffer);
+			snprintf(msg, 255, "From a running module: %s", cbuf);
 			irc_privmsg("#pharmaceuticals", msg);
 		}
 		usleep(50 * 1000);

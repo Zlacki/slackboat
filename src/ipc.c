@@ -1,9 +1,12 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <signal.h>
 #include <sys/wait.h>
+#include <errno.h>
 #include "ipc.h"
+#include "io.h"
 #include "irc.h"
 #include "util.h"
 
@@ -12,51 +15,97 @@ int ipc_index = 0;
 char *ipc_names[256];
 
 void init_ipc(void) {
-	pipe(pipe_fd);
 	pthread_t ipc_thread;
 	pthread_create(&ipc_thread, NULL, handle_ipc_calls, NULL);
+
 	struct sigaction sa;
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = 0;
 	sa.sa_handler = child_handler;
-
 	sigaction(SIGCHLD, &sa, NULL);
 }
 
 void init_module(char *name) {
+	if(pipe(pipe_fd)) {
+		perror("Error creating IPC pipes");
+		exit(1);
+	}
+
 	pid_t child = fork();
-	if(child == -1) {
+
+	if(child < 0) {
 		perror("Error starting module");
 		return;
 	}
-	if(child == 0) {
+
+	/* TODO: Handle errors starting modules without killing IRC I/O */
+
+	if(!child) {
 		ipc_names[ipc_index++] = name;
 		char s[256];
 		snprintf(s, 255, "Module ‘%s’ starting...", name);
 		irc_privmsg("#pharmaceuticals", s);
 		strprepend(name, "./");
-		dup2(pipe_fd[1], STDOUT_FILENO);
-		close(pipe_fd[1]);
+		close(1);
+		if(dup(pipe_fd[1]) < 0) {
+			perror("Error starting module.");
+			exit(1);
+		}
 		close(pipe_fd[0]);
 		execl(name, name, NULL);
-	} else {
-		dup2(pipe_fd[0], STDIN_FILENO);
-		close(pipe_fd[0]);
-		close(pipe_fd[1]);
 	}
 
 	return;
 }
 
+int ipc_read(char *in_buffer) {
+	ssize_t nread = 0;
+	size_t tread = 0;
+	char c;
+
+	if (in_buffer == NULL) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	for (;;) {
+		nread = read(pipe_fd[0], &c, 1);
+
+		if (nread == -1) {
+			if (errno == EINTR)
+				continue;
+			else
+				return -1;
+		} else if (nread == 0) {
+			if (tread == 0)
+				return 0;
+			else
+				break;
+
+		} else {
+			if (tread < BUFFER_SIZE - 1) {
+				tread++;
+				*in_buffer++ = c;
+			}
+
+			if (c == '\n' || c == EOF)
+				break;
+		}
+	}
+
+	*in_buffer = '\0';
+	return tread;
+}
+
 void *handle_ipc_calls() {
-	close(pipe_fd[1]);
-	char cbuf[256];
-	int tread;
 	for(;;) {
-		while((tread = read(pipe_fd[0], cbuf, 256)) > 0) {
-			cbuf[tread] = '\0';
+		char in_buffer[BUFFER_SIZE];
+		int tread = ipc_read(in_buffer);
+		if(tread > 0) {
+			if(DEBUG)
+				printf("IPC IN: %s", in_buffer);
 			char msg[256];
-			snprintf(msg, 255, "From a running module: %s", cbuf);
+			snprintf(msg, 255, "From a running module: %s", in_buffer);
 			irc_privmsg("#pharmaceuticals", msg);
 		}
 		usleep(50 * 1000);

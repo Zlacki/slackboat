@@ -90,7 +90,6 @@ int slack_read(char *in_buffer) {
 		return -1;
 	}
 
-	tread = 0;
 	for (;;) {
 		nread = read(socket_fd, &c, 1);
 

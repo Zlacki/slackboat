@@ -28,28 +28,6 @@ void init_ipc(void) {
 	sigaction(SIGCHLD, &sa, NULL);
 }
 
-void init_module(char *name) {
-	pid_t child = fork();
-
-	if(child < 0) {
-		perror("Error starting module");
-		return;
-	}
-
-	/* TODO: Handle errors starting modules without killing IRC I/O */
-
-	if(!child) {
-		ipc_names[ipc_index++] = name;
-		char s[256];
-		snprintf(s, 255, "Module ‘%s’ starting...", name);
-		irc_privmsg("#pharmaceuticals", s);
-		strprepend(name, "./");
-		execl(name, name, NULL);
-	}
-
-	return;
-}
-
 void *handle_ipc_calls() {
 	int s, s2, t, len;
 	struct sockaddr_un local, remote;
@@ -92,6 +70,28 @@ void *handle_ipc_calls() {
 	}
 
 	return NULL;
+}
+
+void init_module(char *name) {
+	pid_t child = fork();
+
+	if(child < 0) {
+		perror("Error starting module");
+		return;
+	}
+
+	/* TODO: Handle errors starting modules without killing IRC I/O */
+
+	if(!child) {
+		ipc_names[ipc_index++] = name;
+		char s[256];
+		snprintf(s, 255, "Module ‘%s’ starting...", name);
+		irc_privmsg("#pharmaceuticals", s);
+		strprepend(name, "./");
+		execl(name, name, NULL);
+	}
+
+	return;
 }
 
 void child_handler(int sig) {

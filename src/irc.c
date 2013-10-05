@@ -6,7 +6,7 @@
 #include "io.h"
 
 void irc_notice_event(char *sender, char *argument, char *content) {
-	/* TODO: Load this and more from a cache file of sorts, hosts, channels, quotes, etc. */
+	/* TODO: create savestate to load info at startup instead of compile-time */
 	if(strstr(content, "*** Looking up your hostname") != NULL) {
 		slack_send("NICK slackboat\r\n");
 		slack_send("USER slackboat 8 * :Slack the Boat\r\n");
@@ -42,18 +42,8 @@ void irc_privmsg_event(char *sender, char *argument, char *content) {
 			for(int i = 1; i < argc; i++)
 				argv[i] = strtok(NULL, " ");
 		}
-		if((!strncmp(command, "kick", 4) || !strncmp(command, "k", 1)) && argc > 0) {
-			char out[256];
-			memset(out, 0, 256);
-			snprintf(out, 10 + strlen(argument), "KICK %s ", argument);
-			for(int i = 0; i < argc; i++) {
-				strcat(out, argv[i]);
-				strcat(out, " ");
-			}
-			irc_privmsg("ChanServ", out);
-		} else if(!strncmp(command, "load", 4) && argc > 0) {
+		if(!strncmp(command, "load", 4) && argc > 0)
 			init_module(strdup(argv[0]));
-		}
 		free(argv);
 	}
 }

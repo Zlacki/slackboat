@@ -4,13 +4,16 @@
 #include <pthread.h>
 #include <signal.h>
 #include <sys/wait.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/un.h>
+#include <string.h>
 #include <errno.h>
 #include "ipc.h"
 #include "io.h"
 #include "irc.h"
 #include "util.h"
 
-int pipe_fd[2];
 int ipc_index = 0;
 char *ipc_names[256];
 
@@ -26,11 +29,6 @@ void init_ipc(void) {
 }
 
 void init_module(char *name) {
-	if(pipe(pipe_fd)) {
-		perror("Error creating IPC pipes");
-		exit(1);
-	}
-
 	pid_t child = fork();
 
 	if(child < 0) {
@@ -46,11 +44,6 @@ void init_module(char *name) {
 		snprintf(s, 255, "Module ‘%s’ starting...", name);
 		irc_privmsg("#pharmaceuticals", s);
 		strprepend(name, "./");
-		close(1);
-		if(dup(pipe_fd[1]) < 0) {
-			perror("Error starting module.");
-			exit(1);
-		}
 		execl(name, name, NULL);
 	}
 
@@ -58,14 +51,41 @@ void init_module(char *name) {
 }
 
 void *handle_ipc_calls() {
-	close(pipe_fd[1]);
-	char cbuf[256];
-	int tread;
+	int s, s2, t, len;
+	struct sockaddr_un local, remote;
+	char str[256];
+
+	if ((s = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
+		perror("socket");
+		exit(1);
+	}
+
+	local.sun_family = AF_UNIX;
+	strcpy(local.sun_path, "./slackboat.sock");
+	unlink(local.sun_path);
+	len = strlen(local.sun_path) + sizeof(local.sun_family);
+	if (bind(s, (struct sockaddr *)&local, len) == -1) {
+		perror("bind");
+		exit(1);
+	}
+
+	if (listen(s, 5) == -1) {
+		perror("listen");
+		exit(1);
+	}
+
 	for(;;) {
-		while((tread = read(pipe_fd[0], cbuf, 255)) > 0) {
-			cbuf[tread] = '\0';
+		int n;
+		t = sizeof(remote);
+
+		if ((s2 = accept(s, (struct sockaddr *)&remote, (socklen_t *) &t)) == -1) {
+			perror("accept");
+			exit(1);
+		}
+
+		while((n = recv(s2, str, 255, 0)) > 0) {
 			char msg[256];
-			snprintf(msg, 255, "From a running module: %s", cbuf);
+			snprintf(msg, 255, "From a running module: %s", str);
 			irc_privmsg("#pharmaceuticals", msg);
 		}
 		usleep(50 * 1000);

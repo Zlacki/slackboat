@@ -15,7 +15,7 @@
 
 int socket_fd;
 
-bool slack_connect(char *server, unsigned int port) {
+bool irc_connect(char *server, unsigned int port) {
 	struct sockaddr_in servaddr;
 	memset(&servaddr, 0, sizeof(servaddr));
 	servaddr.sin_family = AF_INET;
@@ -33,13 +33,13 @@ bool slack_connect(char *server, unsigned int port) {
 	return true;
 }
 
-int slack_send(char *out) {
+int irc_send(char *out) {
     if (DEBUG)
         printf("OUT: %s", out);
     return send(socket_fd, out, strlen(out), 0);
 }
 
-int slack_read(char *in_buffer) {
+int irc_read(char *in_buffer) {
 	ssize_t nread = 0;
 	size_t tread = 0;
 	char c;
@@ -82,14 +82,14 @@ int slack_read(char *in_buffer) {
 int main(void) {
 	init_ipc();
 	struct hostent *hp = gethostbyname(SERVER);
-	if(!slack_connect(inet_ntoa(*(struct in_addr*) (hp->h_addr_list[0])), 6667)) {
+	if(!irc_connect(inet_ntoa(*(struct in_addr*) (hp->h_addr_list[0])), 6667)) {
 		printf("Failed to connect to %s.\n", SERVER);
 		exit(1);
 	}
 
 	for(;;) {
 		char in_buffer[BUFFER_SIZE];
-		int i = slack_read(in_buffer);
+		int i = irc_read(in_buffer);
 		if(i > 0) {
 			if(DEBUG)
 				printf("IN: %s", in_buffer);
@@ -110,7 +110,7 @@ int main(void) {
 				memset(out, 0, BUFFER_SIZE);
 				char *pos = strstr(in_buffer, " ") + 1;
 				snprintf(out, 8 + strlen(pos), "PONG %s", pos);
-				slack_send(out);
+				irc_send(out);
 			}
 		} else if(i < 0)
 			perror("Unexpected error while reading from IRC socket");

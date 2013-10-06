@@ -15,6 +15,7 @@
 #include "util.h"
 
 int ipc_index = 0;
+int ipc_fd = -1;
 char *ipc_names[256];
 
 void init_ipc(void) {
@@ -29,11 +30,11 @@ void init_ipc(void) {
 }
 
 void *handle_ipc_calls() {
-	int s, s2, t, len;
+	int s2, t, len;
 	struct sockaddr_un local, remote;
 	char str[256];
 
-	if ((s = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
+	if ((ipc_fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
 		perror("socket");
 		exit(1);
 	}
@@ -42,12 +43,12 @@ void *handle_ipc_calls() {
 	strcpy(local.sun_path, "./slackboat.sock");
 	unlink(local.sun_path);
 	len = strlen(local.sun_path) + sizeof(local.sun_family);
-	if (bind(s, (struct sockaddr *)&local, len) == -1) {
+	if (bind(ipc_fd, (struct sockaddr *)&local, len) == -1) {
 		perror("bind");
 		exit(1);
 	}
 
-	if (listen(s, 5) == -1) {
+	if (listen(ipc_fd, 5) == -1) {
 		perror("listen");
 		exit(1);
 	}
@@ -56,7 +57,7 @@ void *handle_ipc_calls() {
 		int n;
 		t = sizeof(remote);
 
-		if ((s2 = accept(s, (struct sockaddr *)&remote, (socklen_t *) &t)) == -1) {
+		if ((s2 = accept(ipc_fd, (struct sockaddr *)&remote, (socklen_t *) &t)) == -1) {
 			perror("accept");
 			exit(1);
 		}
@@ -70,6 +71,16 @@ void *handle_ipc_calls() {
 	}
 
 	return NULL;
+}
+
+int ipc_send(char *out) {
+	if(ipc_fd > -1) {
+		if (DEBUG)
+			printf("IPC OUT: %s", out);
+		return send(ipc_fd, out, strlen(out), 0);
+	}
+
+	return 0;
 }
 
 void init_module(char *name) {

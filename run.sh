@@ -1,6 +1,6 @@
 #!/bin/sh
 while [[ 1 ]]; do
-	# do shit
+	socat - UNIX-RECVFROM:./slackboat.sock
 	sleep .5
 done
 exit

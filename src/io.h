@@ -6,8 +6,8 @@
 #define BUFFER_SIZE 1024
 #define DEBUG true
 
-bool slack_connect(char *, unsigned int);
-int slack_send(char *);
-int slack_read(char *);
+bool irc_connect(char *, unsigned int);
+int irc_send(char *);
+int irc_read(char *);
 
 #endif

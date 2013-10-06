@@ -8,8 +8,8 @@
 void irc_notice_event(char *sender, char *argument, char *content) {
 	/* TODO: create savestate to load info at startup instead of compile-time */
 	if(strstr(content, "*** Looking up your hostname") != NULL) {
-		slack_send("NICK slackboat\r\n");
-		slack_send("USER slackboat 8 * :Slack the Boat\r\n");
+		irc_send("NICK slackboat\r\n");
+		irc_send("USER slackboat 8 * :Slack the Boat\r\n");
 	}
 	if(!strncmp(sender, "NickServ", 8) && strstr(content, "please choose a different nick") != NULL) {
 		char out[256];
@@ -42,7 +42,9 @@ void irc_privmsg_event(char *sender, char *argument, char *content) {
 			for(int i = 1; i < argc; i++)
 				argv[i] = strtok(NULL, " ");
 		}
-		if(!strncmp(command, "load", 4) && argc > 0)
+		if(strlen(command) > 0) {
+			ipc_send(content);
+		} else if(!strncmp(command, "load", 4) && argc > 0)
 			init_module(strdup(argv[0]));
 		free(argv);
 	}
@@ -52,7 +54,7 @@ void irc_privmsg(const char *recipient, const char *message) {
 	char out[256];
 	memset(out, 0, 256);
 	snprintf(out, 13 + strlen(recipient) + strlen(message), "PRIVMSG %s :%s\r\n", recipient, message);
-	slack_send(out);
+	irc_send(out);
 	return;
 }
 
@@ -60,6 +62,6 @@ void irc_join_channel(const char *channel) {
 	char out[BUFFER_SIZE];
 	memset(out, 0, BUFFER_SIZE);
 	snprintf(out, 8 + strlen(channel), "JOIN %s\r\n", channel);
-	slack_send(out);
+	irc_send(out);
 	return;
 }

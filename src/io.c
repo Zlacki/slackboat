@@ -5,12 +5,10 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <pthread.h>
 #include <netdb.h>
 #include <unistd.h>
 #include "io.h"
 #include "irc.h"
-#include "ipc.h"
 #include "util.h"
 
 int socket_fd;
@@ -80,7 +78,6 @@ int irc_read(char *in_buffer) {
 
 
 int main(void) {
-	init_ipc();
 	struct hostent *hp = gethostbyname(SERVER);
 	if(!irc_connect(inet_ntoa(*(struct in_addr*) (hp->h_addr_list[0])), 6667)) {
 		printf("Failed to connect to %s.\n", SERVER);

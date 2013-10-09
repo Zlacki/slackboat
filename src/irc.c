@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include "irc.h"
-#include "ipc.h"
 #include "io.h"
 
 void irc_notice_event(char *sender, char *argument, char *content) {
@@ -42,10 +41,8 @@ void irc_privmsg_event(char *sender, char *argument, char *content) {
 			for(int i = 1; i < argc; i++)
 				argv[i] = strtok(NULL, " ");
 		}
-		if(strlen(command) > 0) {
-			ipc_send(content);
-		} else if(!strncmp(command, "load", 4) && argc > 0)
-			init_module(strdup(argv[0]));
+		if(!strncmp(command, "load", 4) && argc > 0)
+			irc_privmsg(argument, "This feature is not yet implemented.");
 		free(argv);
 	}
 }

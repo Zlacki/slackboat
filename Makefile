@@ -1,6 +1,6 @@
 include config.mk
 
-OBJ=bin/io.o bin/irc.o bin/ipc.o bin/util.o
+OBJ=bin/io.o bin/irc.o bin/util.o
 
 all: mkbin options slackboat
 

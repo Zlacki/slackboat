@@ -1,3 +1,34 @@
+/**
+ * Copyright © 2013, Zach Knight <zach@libslack.so>
+ *
+ * Permission to use, copy, modify, and/or distribute this software
+ * for any purpose with or without fee is hereby granted, provided
+ * that the above copyright notice and this permission notice appear
+ * in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
+ * WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL
+ * THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
+ * CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING
+ * FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF
+ * CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT
+ * OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
+/**
+ * @file io.c
+ * @author Zach Knight
+ * @date 09 Oct 2013
+ * @brief File implementing entry-point and I/O handling code.
+ *
+ * This code is the entry-point for the IRC bot core, it
+ * also contains the I/O code for connecting to and processing
+ * the IRC protocol as best as possible, as well as the I/O code
+ * for handling IPC of the modules that implement the bots features
+ * as seperate applications through a custom protocol.
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>

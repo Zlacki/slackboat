@@ -34,6 +34,7 @@
 #define _IRC_H
 
 #define NICK "slackboat"
+#define NAME "Slack the Boat"
 #define SERVER "irc.what.cd"
 #define PASSWORD "PASSWORD"
 

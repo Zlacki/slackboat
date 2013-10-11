@@ -31,9 +31,12 @@
 #ifndef _UTIL_H
 #define _UTIL_H
 
-#define BUFFER_SIZE 1024
+#define BUFFER_SIZE 512
 #define DEBUG true
 
-void strprepend(char *, const char *);
+void *safe_alloc(size_t);
+void *safe_calloc(size_t, size_t);
+void *safe_realloc(void *, size_t);
+char *strformat(const char *, ...);
 
 #endif

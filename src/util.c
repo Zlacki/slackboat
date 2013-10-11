@@ -27,16 +27,51 @@
  * to simplify programming.
  */
 
+#include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <string.h>
 #include "util.h"
 
-void strprepend(char *s, const char *t) {
-	size_t tlen = strlen(t);
-	size_t slen = strlen(s);
+void *safe_alloc(size_t size) {
+	void *ptr;
+	if((ptr = malloc(size)) == NULL) {
+		perror("Out of memory");
+		exit(EXIT_FAILURE);
+	}
 
-	s = realloc(s, slen + tlen);
+	return ptr;
+}
 
-	memmove(s + tlen, s, slen);
-	memmove(s, t, tlen);
+void *safe_calloc(size_t n, size_t size) {
+	void *ptr;
+	if((ptr = calloc(n, size)) == NULL) {
+		perror("Out of memory");
+		exit(EXIT_FAILURE);
+	}
+
+	return ptr;
+}
+
+void *safe_realloc(void *orig_ptr, size_t size) {
+	void *ptr;
+	if((ptr = realloc(orig_ptr, size)) == NULL) {
+		perror("Out of memory");
+		exit(EXIT_FAILURE);
+	}
+
+	orig_ptr = ptr;
+
+	return orig_ptr;
+}
+
+char *strformat(const char *s, ...) {
+	char *buf = safe_alloc(BUFFER_SIZE);
+	va_list vl;
+
+	va_start(vl, s);
+	vsnprintf(buf, BUFFER_SIZE, s, vl);
+	va_end(vl);
+
+	return buf;
 }

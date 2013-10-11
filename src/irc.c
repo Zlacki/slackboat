@@ -39,14 +39,18 @@
 void irc_notice_event(char *sender, char *argument, char *content) {
 	/* TODO: create savestate to load info at startup instead of compile-time */
 	if(strstr(content, "*** Looking up your hostname") != NULL) {
-		irc_send("NICK slackboat\r\n");
-		irc_send("USER slackboat 8 * :Slack the Boat\r\n");
+		char *out = strformat("NICK %s\n", NICK);
+		irc_send(out);
+		free(out);
+		out = strformat("USER %s 8 * :%s\n", NICK, NAME);
+		irc_send(out);
+		free(out);
 	}
+
 	if(!strncmp(sender, "NickServ", 8) && strstr(content, "please choose a different nick") != NULL) {
-		char out[256];
-		memset(out, 0, 256);
-		snprintf(out, 12 + strlen(PASSWORD), "IDENTIFY %s\n", PASSWORD);
+		char *out = strformat("IDENTIFY %s\n", PASSWORD);
 		irc_privmsg("NickServ", out);
+		free(out);
 	}
 }
 
@@ -56,7 +60,9 @@ void irc_welcome_event(void) {
 
 void irc_privmsg_event(char *sender, char *argument, char *content) {
 	if(!strncmp(content, ".", 1) && !strncmp(sender, "zlacki", 6)) {
-		char **argv, command[128], args[256];
+		char **argv;
+		char *command = safe_alloc(128);
+		char *args = safe_alloc(256);
 		int argc;
 		if(strstr(content, " ") != NULL) {
 			argc = 1;
@@ -67,47 +73,44 @@ void irc_privmsg_event(char *sender, char *argument, char *content) {
 			argc = 0;
 			sscanf(content, ".%127s[^\r\n]", command);
 		}
-		argv = (char **) malloc(sizeof(char *) * argc);
+		argv = (char **) safe_calloc(argc, sizeof(char *));
 		if(argc > 0) {
 			argv[0] = strtok(args, " ");
 			for(int i = 1; i < argc; i++)
 				argv[i] = strtok(NULL, " ");
 		}
 		if(!strncmp(command, "load", 4) && argc > 0) {
-			char *name = malloc(strlen(argv[0]));
-			strcpy(name, argv[0]);
-			if(access(name, F_OK) != 0)
-				irc_privmsg(argument, "Module not found; ignoring.");
-			else {
-				strprepend(name, "./");
-				FILE *fp = popen(name, "r");
-				char buffer[512];
-				char c;
-				int i = 0;
-				while((c = fgetc(fp)) != '\n')
-					buffer[i++] = c;
-				buffer[i] = '\0';
-				irc_privmsg(argument, buffer);
-				pclose(fp);
+			char *name = strformat("./modules/%s", argv[0]);
+			if(access(name, F_OK) != 0) {
+				char *out = strformat("Module %s not found; ignoring.\n", argv[0]);
+				irc_privmsg(argument, out);
+				free(out);
+			} else {
+				char *buf = safe_alloc(BUFFER_SIZE);
+				ipc_read(name, buf);
+				if(DEBUG)
+					printf("IPC IN: %s", buf);
+				irc_privmsg(argument, buf);
+				free(buf);
 			}
 			free(name);
 		}
+		free(command);
+		free(args);
 		free(argv);
 	}
 }
 
 void irc_privmsg(const char *recipient, const char *message) {
-	char out[256];
-	memset(out, 0, 256);
-	snprintf(out, 13 + strlen(recipient) + strlen(message), "PRIVMSG %s :%s\n", recipient, message);
+	char *out = strformat("PRIVMSG %s :%s", recipient, message);
 	irc_send(out);
+	free(out);
 	return;
 }
 
 void irc_join_channel(const char *channel) {
-	char out[BUFFER_SIZE];
-	memset(out, 0, BUFFER_SIZE);
-	snprintf(out, 8 + strlen(channel), "JOIN %s\n", channel);
+	char *out = strformat("JOIN %s\n", channel);
 	irc_send(out);
+	free(out);
 	return;
 }

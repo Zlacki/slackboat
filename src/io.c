@@ -45,6 +45,32 @@
 
 int socket_fd;
 
+int ipc_read(char *name, char *in) {
+	FILE *fp = popen(name, "r");
+	size_t tread = 0;
+	char c;
+
+	if (in == NULL) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	while((c = fgetc(fp)) != EOF) {
+		if (tread < BUFFER_SIZE - 1) {
+			tread++;
+			*in++ = c;
+		}
+
+		if (c == '\n')
+			break;
+	}
+
+	pclose(fp);
+
+	*in = '\0';
+	return tread;
+}
+
 bool irc_connect(char *server, unsigned int port) {
 	struct sockaddr_in servaddr;
 	memset(&servaddr, 0, sizeof(servaddr));
@@ -69,12 +95,12 @@ int irc_send(char *out) {
     return send(socket_fd, out, strlen(out), 0);
 }
 
-int irc_read(char *in_buffer) {
+int irc_read(char *in) {
 	ssize_t nread = 0;
 	size_t tread = 0;
 	char c;
 
-	if (in_buffer == NULL) {
+	if (in == NULL) {
 		errno = EINVAL;
 		return -1;
 	}
@@ -92,11 +118,10 @@ int irc_read(char *in_buffer) {
 				return 0;
 			else
 				break;
-
 		} else {
 			if (tread < BUFFER_SIZE - 1) {
 				tread++;
-				*in_buffer++ = c;
+				*in++ = c;
 			}
 
 			if (c == '\n')
@@ -104,7 +129,7 @@ int irc_read(char *in_buffer) {
 		}
 	}
 
-	*in_buffer = '\0';
+	*in = '\0';
 	return tread;
 }
 
@@ -122,13 +147,16 @@ int main(void) {
 	}
 
 	for(;;) {
-		char in_buffer[BUFFER_SIZE];
-		int i = irc_read(in_buffer);
+		char *buf = safe_alloc(BUFFER_SIZE);
+		int i = irc_read(buf);
 		if(i > 0) {
 			if(DEBUG)
-				printf("IN: %s", in_buffer);
-			char sender[64], command[32], argument[32], content[256];
-			sscanf(in_buffer, ":%63s %31s %31s :%255[^\n]", sender, command, argument, content);
+				printf("IN: %s", buf);
+			char *sender = safe_alloc(64);
+			char *command = safe_alloc(32);
+			char *argument = safe_alloc(32);
+			char *content = safe_alloc(256);
+			sscanf(buf, ":%63s %31s %31s :%255[^\n]", sender, command, argument, content);
 
 			if(!strncmp(command, "NOTICE", 6))
 				irc_notice_event(sender, argument, content);
@@ -139,15 +167,17 @@ int main(void) {
 			if(!strncmp(command, "PRIVMSG", 7))
 				irc_privmsg_event(sender, argument, content);
 
-			if(!strncmp(in_buffer, "PING :", 6)) {
-				char out[BUFFER_SIZE];
-				memset(out, 0, BUFFER_SIZE);
-				char *pos = strstr(in_buffer, " ") + 1;
-				snprintf(out, 8 + strlen(pos), "PONG %s", pos);
-				irc_send(out);
+			if(!strncmp(buf, "PING :", 6)) {
+				buf[1] = 'O';
+				irc_send(buf);
 			}
+			free(sender);
+			free(command);
+			free(argument);
+			free(content);
 		} else if(i < 0)
 			perror("Unexpected error while reading from IRC socket");
+		free(buf);
 		usleep(50 * 1000); /* 50ms */
 	}
 

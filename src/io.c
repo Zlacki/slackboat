@@ -109,10 +109,15 @@ int irc_read(char *in_buffer) {
 
 
 int main(void) {
+	if(pipe(ipc_fds) < 0) {
+		perror("Broken pipes.");
+		return 1;
+	}
+
 	struct hostent *hp = gethostbyname(SERVER);
 	if(!irc_connect(inet_ntoa(*(struct in_addr*) (hp->h_addr_list[0])), 6667)) {
 		printf("Failed to connect to %s.\n", SERVER);
-		exit(1);
+		return 1;
 	}
 
 	for(;;) {

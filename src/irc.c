@@ -31,6 +31,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
+#include <unistd.h>
+#include <sys/wait.h>
 #include "irc.h"
 #include "io.h"
 #include "util.h"
@@ -54,7 +57,7 @@ void irc_welcome_event(void) {
 }
 
 void irc_privmsg_event(char *sender, char *argument, char *content) {
-	if(!strncmp(content, ".", 1) && !strncmp(sender, "sasha", 5)) {
+	if(!strncmp(content, ".", 1) && !strncmp(sender, "zlacki", 6)) {
 		char **argv, command[128], args[256];
 		int argc;
 		if(strstr(content, " ") != NULL) {
@@ -72,8 +75,37 @@ void irc_privmsg_event(char *sender, char *argument, char *content) {
 			for(int i = 1; i < argc; i++)
 				argv[i] = strtok(NULL, " ");
 		}
-		if(!strncmp(command, "load", 4) && argc > 0)
-			irc_privmsg(argument, "This feature is not yet implemented.");
+		if(!strncmp(command, "load", 4) && argc > 0) {
+			pid_t pid = fork();
+			if(pid == -1)
+				irc_privmsg(argument, "Could not launch child process");
+			else if(pid == 0) {
+				while((dup2(ipc_fds[1], STDOUT_FILENO) == -1) && (errno == EINTR)) {}
+				close(ipc_fds[1]);
+				close(ipc_fds[0]);
+//				strprepend(argv[0], "./");
+				execl(argv[0], argv[0], NULL);
+			}
+			close(ipc_fds[1]);
+			char buffer[4096];
+			while (1) {
+			  ssize_t count = read(ipc_fds[0], buffer, sizeof(buffer));
+			  if (count == -1) {
+				if (errno == EINTR) {
+					continue;
+				} else {
+					perror("read");
+					exit(1);
+				}
+			  } else if (count == 0) {
+				break;
+			  } else {
+				irc_privmsg(argument, buffer);
+			  }
+			}
+			close(ipc_fds[0]);
+			wait(0);
+		}
 		free(argv);
 	}
 }

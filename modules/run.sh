@@ -1,3 +1,4 @@
 #!/bin/sh
-echo 'FUCK'
+read first
+echo ${first}
 exit

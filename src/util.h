@@ -31,7 +31,7 @@
 #ifndef _UTIL_H
 #define _UTIL_H
 
-#define BUFFER_SIZE 512
+#define BUFFER_SIZE 8192
 #define DEBUG true
 
 void *safe_alloc(size_t);

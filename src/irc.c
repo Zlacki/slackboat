@@ -59,7 +59,7 @@ void irc_welcome_event(void) {
 }
 
 void irc_privmsg_event(char *sender, char *argument, char *content) {
-	if(!strncmp(content, ".", 1) && !strncmp(sender, "zlacki", 6)) {
+	if(!strncmp(content, ".", 1)) {
 		char **argv;
 		char *command = safe_alloc(128);
 		char *args = safe_alloc(256);
@@ -79,19 +79,17 @@ void irc_privmsg_event(char *sender, char *argument, char *content) {
 			for(int i = 1; i < argc; i++)
 				argv[i] = strtok(NULL, " ");
 		}
-		if(!strncmp(command, "load", 4) && argc > 0) {
+		if(!strncmp(command, "load", 4) && argc > 0 && !strncmp(sender, "zlacki", 6)) {
 			char *name = strformat("./modules/%s", argv[0]);
 			if(access(name, F_OK) != 0) {
 				char *out = strformat("Module %s not found; ignoring.\n", argv[0]);
 				irc_privmsg(argument, out);
 				free(out);
 			} else {
-				char *buf = safe_alloc(BUFFER_SIZE);
-				ipc_read(name, buf);
-				if(DEBUG)
-					printf("IPC IN: %s", buf);
-				irc_privmsg(argument, buf);
-				free(buf);
+				char *in = safe_alloc(BUFFER_SIZE);
+				char *out = safe_alloc(BUFFER_SIZE);
+				FILE *fp = popen(name, "r");
+				//ipc_add_module(fp, in, out);
 			}
 			free(name);
 		}

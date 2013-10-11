@@ -44,30 +44,40 @@
 #include "util.h"
 
 int socket_fd;
+/*
+void ipc_add_module(FILE *fp, char *in, char *out) {
+	ipc_handles[ipc_index].fp = fp;
+	ipc_handles[ipc_index].in = in;
+	ipc_handles[ipc_index++].out = out;
+	return;
+}
+*/
+int ipc_send(ipc_handle_t handle) {
+    if (DEBUG)
+        printf("IPC OUT: %s", handle.out);
+    return fwrite(handle.out, sizeof(ipc_handle_t), 1, handle.fp);
+}
 
-int ipc_read(char *name, char *in) {
-	FILE *fp = popen(name, "r");
+int ipc_read(ipc_handle_t handle) {
 	size_t tread = 0;
 	char c;
 
-	if (in == NULL) {
+	if (handle.in == NULL) {
 		errno = EINVAL;
 		return -1;
 	}
 
-	while((c = fgetc(fp)) != EOF) {
+	while((c = fgetc(handle.fp)) != EOF) {
 		if (tread < BUFFER_SIZE - 1) {
 			tread++;
-			*in++ = c;
+			*(handle.in)++ = c;
 		}
 
 		if (c == '\n')
 			break;
 	}
 
-	pclose(fp);
-
-	*in = '\0';
+	*(handle.in) = '\0';
 	return tread;
 }
 
@@ -137,13 +147,17 @@ int irc_read(char *in) {
 int main(void) {
 	if (signal(SIGCHLD, SIG_IGN) == SIG_ERR) {
 		perror(0);
-		exit(1);
+		return EXIT_FAILURE;
 	}
 
+	/* TODO: Save to binary format compressed with xz, load on boot */
+/*	ipc_handles = safe_calloc(100, sizeof(ipc_handle_t));
+	ipc_index = 0;
+*/
 	struct hostent *hp = gethostbyname(SERVER);
 	if(!irc_connect(inet_ntoa(*(struct in_addr*) (hp->h_addr_list[0])), 6667)) {
 		printf("Failed to connect to %s.\n", SERVER);
-		return 1;
+		return EXIT_FAILURE;
 	}
 
 	for(;;) {
@@ -181,5 +195,5 @@ int main(void) {
 		usleep(50 * 1000); /* 50ms */
 	}
 
-	return 0;
+	return EXIT_SUCCESS;
 }

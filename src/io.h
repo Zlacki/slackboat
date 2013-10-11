@@ -32,7 +32,17 @@
 
 #include <stdbool.h>
 
-int ipc_read(char *, char *);
+typedef struct {
+	FILE *fp;
+	char *in, *out;
+} ipc_handle_t;
+
+ipc_handle_t *ipc_handles;
+int ipc_index;
+
+void ipc_add_module(FILE *, char *, char *);
+int ipc_read(ipc_handle_t);
+int ipc_send(ipc_handle_t);
 bool irc_connect(char *, unsigned int);
 int irc_send(char *);
 int irc_read(char *);

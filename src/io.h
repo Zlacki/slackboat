@@ -32,8 +32,6 @@
 
 #include <stdbool.h>
 
-int ipc_fds[2];
-
 bool irc_connect(char *, unsigned int);
 int irc_send(char *);
 int irc_read(char *);

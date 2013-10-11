@@ -38,6 +38,7 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <unistd.h>
+#include <signal.h>
 #include "io.h"
 #include "irc.h"
 #include "util.h"
@@ -109,9 +110,9 @@ int irc_read(char *in_buffer) {
 
 
 int main(void) {
-	if(pipe(ipc_fds) < 0) {
-		perror("Broken pipes.");
-		return 1;
+	if (signal(SIGCHLD, SIG_IGN) == SIG_ERR) {
+		perror(0);
+		exit(1);
 	}
 
 	struct hostent *hp = gethostbyname(SERVER);

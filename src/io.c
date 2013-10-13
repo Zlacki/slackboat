@@ -38,20 +38,21 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <unistd.h>
+#include <pthread.h>
 #include <signal.h>
 #include "io.h"
 #include "irc.h"
 #include "util.h"
 
 int socket_fd;
-/*
+
 void ipc_add_module(FILE *fp, char *in, char *out) {
 	ipc_handles[ipc_index].fp = fp;
 	ipc_handles[ipc_index].in = in;
 	ipc_handles[ipc_index++].out = out;
 	return;
 }
-*/
+
 int ipc_send(ipc_handle_t handle) {
     if (DEBUG)
         printf("IPC OUT: %s", handle.out);
@@ -143,17 +144,30 @@ int irc_read(char *in) {
 	return tread;
 }
 
+void *process_ipc_messages() {
+	for(;;)
+		for(int j = 0; j < 100; j++) {
+			int i = ipc_read(ipc_handles[j]);
+			if(i > 0) {
+				if(DEBUG)
+					printf("IPC IN: %s", ipc_handles[j].in);
+			}
+		}
+}
 
 int main(void) {
+	pthread_t ipc_thread;
 	if (signal(SIGCHLD, SIG_IGN) == SIG_ERR) {
 		perror(0);
 		return EXIT_FAILURE;
 	}
 
 	/* TODO: Save to binary format compressed with xz, load on boot */
-/*	ipc_handles = safe_calloc(100, sizeof(ipc_handle_t));
+	ipc_handles = safe_calloc(100, sizeof(ipc_handle_t));
 	ipc_index = 0;
-*/
+
+	pthread_create(&ipc_thread, NULL, process_ipc_messages, NULL);
+
 	struct hostent *hp = gethostbyname(SERVER);
 	if(!irc_connect(inet_ntoa(*(struct in_addr*) (hp->h_addr_list[0])), 6667)) {
 		printf("Failed to connect to %s.\n", SERVER);
@@ -166,11 +180,17 @@ int main(void) {
 		if(i > 0) {
 			if(DEBUG)
 				printf("IN: %s", buf);
+
+			if(!strncmp(buf, "PING :", 6)) {
+				buf[1] = 'O';
+				irc_send(buf);
+			}
+
 			char *sender = safe_alloc(64);
 			char *command = safe_alloc(32);
 			char *argument = safe_alloc(32);
 			char *content = safe_alloc(256);
-			sscanf(buf, ":%63s %31s %31s :%255[^\n]", sender, command, argument, content);
+			sscanf(buf, ":%63s %31s %31s :%255[^\r\n]", sender, command, argument, content);
 
 			if(!strncmp(command, "NOTICE", 6))
 				irc_notice_event(sender, argument, content);
@@ -180,11 +200,6 @@ int main(void) {
 
 			if(!strncmp(command, "PRIVMSG", 7))
 				irc_privmsg_event(sender, argument, content);
-
-			if(!strncmp(buf, "PING :", 6)) {
-				buf[1] = 'O';
-				irc_send(buf);
-			}
 			free(sender);
 			free(command);
 			free(argument);

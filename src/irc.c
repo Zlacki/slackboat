@@ -80,19 +80,41 @@ void irc_privmsg_event(char *sender, char *argument, char *content) {
 				argv[i] = strtok(NULL, " ");
 		}
 		if(!strncmp(command, "load", 4) && argc > 0 && !strncmp(sender, "zlacki", 6)) {
+			irc_privmsg(argument, strformat("Loading %s...\n", argv[0]));
 			char *name = strformat("./modules/%s", argv[0]);
 			if(access(name, F_OK) != 0) {
 				char *out = strformat("Module %s not found; ignoring.\n", argv[0]);
 				irc_privmsg(argument, out);
 				free(out);
 			} else {
+				irc_privmsg(argument, strformat("%s loaded.\n", argv[0]));
 				char *in = safe_alloc(BUFFER_SIZE);
 				char *out = safe_alloc(BUFFER_SIZE);
 				FILE *fp = popen(name, "r");
-				//ipc_add_module(fp, in, out);
+				ipc_add_module(fp, in, out);
 			}
 			free(name);
+		} else {
+			for(int i = 0; i < ipc_index; i++) {
+				ipc_handles[i].out = strformat("PRIVMSG %s:%s:%s\n", sender, argument, content);
+				ipc_send(ipc_handles[i]);
+			}
 		}
+		/*if(!strncmp(command, "kick", 4) && argc > 0 && !strncmp(sender, "zlacki", 6)) {
+			for(int i = 0; i < 100; i++) {
+				ipc_handle_t handle = ipc_handles[i];
+				if(handle.fp != NULL) {
+					char *raw = safe_alloc(BUFFER_SIZE);
+					if(argc > 1) {
+						raw = strformat("%s", argv[1]);
+						for(int j = 2; j < argc; j++)
+							strcat(raw, argv[j]);
+					}
+					strcpy(handle.out, strformat("KICK %s %s :%s\n", argument, argv[0], (raw == NULL ? "Requested" : raw)));
+					ipc_send(handle);
+				}
+			}
+		}*/
 		free(command);
 		free(args);
 		free(argv);

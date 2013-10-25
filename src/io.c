@@ -39,11 +39,14 @@
 #include <netdb.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <stdarg.h>
 #include <signal.h>
 #include "io.h"
 #include "irc.h"
 #include "util.h"
 
+static FILE *srv;
+static time_t trespond;
 int socket_fd;
 
 void ipc_add_module(FILE *fp, char *in, char *out) {
@@ -100,48 +103,39 @@ bool irc_connect(char *server, unsigned int port) {
 	return true;
 }
 
-int irc_send(char *out) {
+void irc_out(char *fmt, ...) {
+	va_list ap;
+
+	va_start(ap, fmt);
+	vsnprintf(bufout, sizeof bufout, fmt, ap);
+	va_end(ap);
     if (DEBUG)
-        printf("OUT: %s", out);
-    return send(socket_fd, out, strlen(out), 0);
+        printf("OUT: %s\n", bufout);
+	fprintf(srv, "%s\r\n", bufout);
 }
 
-int irc_read(char *in) {
-	ssize_t nread = 0;
-	size_t tread = 0;
-	char c;
+void irc_in(char *cmd) {
+	char *usr, *par, *txt;
 
-	if (in == NULL) {
-		errno = EINVAL;
-		return -1;
+	usr = SERVER;
+	if(!cmd || !*cmd)
+		return;
+	printf("IN: %s", cmd);
+	if(cmd[0] == ':') {
+		usr = cmd + 1;
+		cmd = skip(usr, ' ');
+		if(cmd[0] == '\0')
+			return;
+		skip(usr, '!');
 	}
-
-	for (;;) {
-		nread = read(socket_fd, &c, 1);
-
-		if (nread == -1) {
-			if (errno == EINTR)
-				continue;
-			else
-				return -1;
-		} else if (nread == 0) {
-			if (tread == 0)
-				return 0;
-			else
-				break;
-		} else {
-			if (tread < BUFFER_SIZE - 1) {
-				tread++;
-				*in++ = c;
-			}
-
-			if (c == '\n')
-				break;
-		}
-	}
-
-	*in = '\0';
-	return tread;
+	skip(cmd, '\r');
+	par = skip(cmd, ' ');
+	txt = skip(par, ':');
+	trim(par);
+	if(!strcmp("PONG", cmd))
+		return;
+	if(!strcmp("PING", cmd))
+		irc_out("PONG %s", txt);
 }
 
 void *process_ipc_messages() {
@@ -156,58 +150,43 @@ void *process_ipc_messages() {
 }
 
 int main(void) {
-	pthread_t ipc_thread;
-	if (signal(SIGCHLD, SIG_IGN) == SIG_ERR) {
-		perror(0);
-		return EXIT_FAILURE;
-	}
+	int i;
+	struct timeval tv;
+	fd_set rd;
 
-	/* TODO: Save to binary format compressed with xz, load on boot */
-	ipc_handles = safe_calloc(100, sizeof(ipc_handle_t));
-	ipc_index = 0;
+	i = dial(SERVER, PORT);
+	srv = fdopen(i, "r+");
 
-	pthread_create(&ipc_thread, NULL, process_ipc_messages, NULL);
-
-	struct hostent *hp = gethostbyname(SERVER);
-	if(!irc_connect(inet_ntoa(*(struct in_addr*) (hp->h_addr_list[0])), 6667)) {
-		printf("Failed to connect to %s.\n", SERVER);
-		return EXIT_FAILURE;
-	}
-
+	irc_out("NICK %s", NICK);
+	irc_out("USER %s localhost %s :%s", NICK, SERVER, USER);
+	irc_join_channel("#meds");
+	fflush(srv);
+	setbuf(stdout, NULL);
+	setbuf(srv, NULL);
 	for(;;) {
-		char *buf = safe_alloc(BUFFER_SIZE);
-		int i = irc_read(buf);
-		if(i > 0) {
-			if(DEBUG)
-				printf("IN: %s", buf);
+		FD_ZERO(&rd);
+		FD_SET(fileno(srv), &rd);
+		tv.tv_sec = 120;
+		tv.tv_usec = 0;
 
-			if(!strncmp(buf, "PING :", 6)) {
-				buf[1] = 'O';
-				irc_send(buf);
-			}
+		i = select(fileno(srv) + 1, &rd, 0, 0, &tv);
+		if(i < 0) {
+			if(errno == EINTR)
+				continue;
+			eprint("sic: error on select():");
+		} else if(i == 0) {
+			if(time(NULL) - trespond >= 300)
+				eprint("sic shutting down: parse timeout\n");
+			irc_out("PING %s", SERVER);
+			continue;
+		}
 
-			char *sender = safe_alloc(64);
-			char *command = safe_alloc(32);
-			char *argument = safe_alloc(32);
-			char *content = safe_alloc(256);
-			sscanf(buf, ":%63s %31s %31s :%255[^\r\n]", sender, command, argument, content);
-
-			if(!strncmp(command, "NOTICE", 6))
-				irc_notice_event(sender, argument, content);
-
-			if(!strncmp(command, "001", 3) && strstr(content, "Welcome") != NULL)
-				irc_welcome_event();
-
-			if(!strncmp(command, "PRIVMSG", 7))
-				irc_privmsg_event(sender, argument, content);
-			free(sender);
-			free(command);
-			free(argument);
-			free(content);
-		} else if(i < 0)
-			perror("Unexpected error while reading from IRC socket");
-		free(buf);
-		usleep(50 * 1000); /* 50ms */
+		if(FD_ISSET(fileno(srv), &rd)) {
+			if(fgets(bufin, sizeof bufin, srv) == NULL)
+				eprint("sic: remote host closed connection\n");
+			irc_in(bufin);
+			trespond = time(NULL);
+		}
 	}
 
 	return EXIT_SUCCESS;

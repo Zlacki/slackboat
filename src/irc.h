@@ -34,9 +34,9 @@
 #define _IRC_H
 
 #define NICK "slackboat"
-#define NAME "Slack the Boat"
-#define SERVER "irc.what.cd"
-#define PASSWORD "PASSWORD"
+#define USER "Slack the Boat"
+#define SERVER "irc.libslack.so"
+#define PORT "6667"
 
 void irc_notice_event(char *, char *, char *);
 void irc_welcome_event(void);

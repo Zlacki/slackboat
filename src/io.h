@@ -31,6 +31,7 @@
 #define _IO_H
 
 #include <stdbool.h>
+#include "util.h"
 
 typedef struct {
 	FILE *fp;
@@ -39,12 +40,14 @@ typedef struct {
 
 ipc_handle_t *ipc_handles;
 int ipc_index;
+char bufin[BUFFER_SIZE];
+char bufout[BUFFER_SIZE];
 
 void ipc_add_module(FILE *, char *, char *);
 int ipc_read(ipc_handle_t);
 int ipc_send(ipc_handle_t);
 bool irc_connect(char *, unsigned int);
-int irc_send(char *);
+void irc_out(char *, ...);
 int irc_read(char *);
 
 #endif

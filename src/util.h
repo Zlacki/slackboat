@@ -31,9 +31,15 @@
 #ifndef _UTIL_H
 #define _UTIL_H
 
-#define BUFFER_SIZE 8192
+#define BUFFER_SIZE 4096
 #define DEBUG true
 
+void eprint(const char *, ...);
+int dial(char *, char *);
+void strlcpy(char *, const char *, int);
+char *eat(char *, int (*)(int), int);
+char* skip(char *, char);
+void trim(char *);
 void *safe_alloc(size_t);
 void *safe_calloc(size_t, size_t);
 void *safe_realloc(void *, size_t);

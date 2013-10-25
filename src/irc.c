@@ -37,25 +37,11 @@
 #include "util.h"
 
 void irc_notice_event(char *sender, char *argument, char *content) {
-	/* TODO: create savestate to load info at startup instead of compile-time */
-	if(strstr(content, "*** Looking up your hostname") != NULL) {
-		char *out = strformat("NICK %s\n", NICK);
-		irc_send(out);
-		free(out);
-		out = strformat("USER %s 8 * :%s\n", NICK, NAME);
-		irc_send(out);
-		free(out);
-	}
 
-	if(!strncmp(sender, "NickServ", 8) && strstr(content, "please choose a different nick") != NULL) {
-		char *out = strformat("IDENTIFY %s\n", PASSWORD);
-		irc_privmsg("NickServ", out);
-		free(out);
-	}
 }
 
 void irc_welcome_event(void) {
-	irc_join_channel("#pharmaceuticals");
+	irc_join_channel("#meds");
 }
 
 void irc_privmsg_event(char *sender, char *argument, char *content) {
@@ -122,15 +108,15 @@ void irc_privmsg_event(char *sender, char *argument, char *content) {
 }
 
 void irc_privmsg(const char *recipient, const char *message) {
-	char *out = strformat("PRIVMSG %s :%s", recipient, message);
-	irc_send(out);
-	free(out);
+	if(recipient[0] == '\0') {
+		puts("irc_privmsg WARNING: No recipient specified.");
+		return;
+	}
+	irc_out("PRIVMSG %s :%s", recipient, message);
 	return;
 }
 
 void irc_join_channel(const char *channel) {
-	char *out = strformat("JOIN %s\n", channel);
-	irc_send(out);
-	free(out);
+	irc_out("JOIN %s", channel);
 	return;
 }

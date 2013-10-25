@@ -62,29 +62,6 @@ int ipc_send(ipc_handle_t handle) {
     return fwrite(handle.out, sizeof(ipc_handle_t), 1, handle.fp);
 }
 
-int ipc_read(ipc_handle_t handle) {
-	size_t tread = 0;
-	char c;
-
-	if (handle.in == NULL) {
-		errno = EINVAL;
-		return -1;
-	}
-
-	while((c = fgetc(handle.fp)) != EOF) {
-		if (tread < BUFFER_SIZE - 1) {
-			tread++;
-			*(handle.in)++ = c;
-		}
-
-		if (c == '\n')
-			break;
-	}
-
-	*(handle.in) = '\0';
-	return tread;
-}
-
 bool irc_connect(char *server, unsigned int port) {
 	struct sockaddr_in servaddr;
 	memset(&servaddr, 0, sizeof(servaddr));
@@ -136,20 +113,59 @@ void irc_in(char *cmd) {
 		return;
 	if(!strcmp("PING", cmd))
 		irc_out("PONG %s", txt);
+	else if(!strcmp("PRIVMSG", cmd))
+		irc_privmsg_event(usr, par, txt);
+}
+
+void ipc_in(char *cmd) {
+	if(DEBUG)
+		printf("IPC IN: %s", cmd);
 }
 
 void *process_ipc_messages() {
+	fd_set rd;
+	struct timeval tv;
+	int i;
 	for(;;)
-		for(int j = 0; j < 100; j++) {
-			int i = ipc_read(ipc_handles[j]);
-			if(i > 0) {
-				if(DEBUG)
-					printf("IPC IN: %s", ipc_handles[j].in);
+		for(int j = 0; j < ipc_index; j++) {
+			ipc_handle_t handle = ipc_handles[j];
+			FD_ZERO(&rd);
+			FD_SET(fileno(handle.fp), &rd);
+			tv.tv_sec = 120;
+			tv.tv_usec = 0;
+
+			i = select(fileno(handle.fp) + 1, &rd, 0, 0, &tv);
+			if(i < 0) {
+				if(errno == EINTR)
+					continue;
+				eprint("ERROR: select():");
+			} else if(i == 0) {
+				if(time(NULL) - trespond >= 300)
+					eprint("FATAL ERROR: parse timeout\n");
+				continue;
+			}
+
+			if(FD_ISSET(fileno(handle.fp), &rd)) {
+				if(fgets(handle.in, sizeof handle.in, handle.fp) == NULL)
+					eprint("ERROR: remote host closed connection\n");
+				ipc_in(handle.in);
+				trespond = time(NULL);
 			}
 		}
 }
 
 int main(void) {
+	pthread_t ipc_thread;
+	if (signal(SIGCHLD, SIG_IGN) == SIG_ERR) {
+		perror(0);
+		return EXIT_FAILURE;
+	}
+
+	pthread_create(&ipc_thread, NULL, process_ipc_messages, NULL);
+
+	ipc_index = 0;
+	ipc_handles = safe_calloc(256, sizeof(ipc_handle_t));
+
 	int i;
 	struct timeval tv;
 	fd_set rd;
@@ -173,17 +189,17 @@ int main(void) {
 		if(i < 0) {
 			if(errno == EINTR)
 				continue;
-			eprint("sic: error on select():");
+			eprint("ERROR: select():");
 		} else if(i == 0) {
 			if(time(NULL) - trespond >= 300)
-				eprint("sic shutting down: parse timeout\n");
+				eprint("ERRROR: shutting down: parse timeout\n");
 			irc_out("PING %s", SERVER);
 			continue;
 		}
 
 		if(FD_ISSET(fileno(srv), &rd)) {
 			if(fgets(bufin, sizeof bufin, srv) == NULL)
-				eprint("sic: remote host closed connection\n");
+				eprint("ERROR: remote host closed connection\n");
 			irc_in(bufin);
 			trespond = time(NULL);
 		}

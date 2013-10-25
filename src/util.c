@@ -87,7 +87,7 @@ char *eat(char *s, int (*p)(int), int r) {
 	return s;
 }
 
-char* skip(char *s, char c) {
+char *skip(char *s, char c) {
 	while(*s != c && *s != '\0')
 		s++;
 	if(*s != '\0')
